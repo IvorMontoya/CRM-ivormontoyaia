@@ -11,7 +11,7 @@ Este archivo es de lectura obligatoria para cualquier agente de IA que participe
 
 ## 2. Infraestructura: Firebase
 
-- La infraestructura del proyecto usa **Firebase**. Puede cubrir autenticación, base de datos (Firestore o Realtime Database, según se decida en `docs/ARQUITECTURA.md`), almacenamiento y otros servicios necesarios.
+- La infraestructura del proyecto usa **Firebase**: **Firebase Authentication** para el acceso, **Cloud Firestore** como base de datos y **Cloud Functions** para lógica de servidor. Firebase Storage se añadirá cuando un módulo lo necesite. Detalle en `docs/ARQUITECTURA.md`.
 - Antes de añadir un servicio de Firebase nuevo, documenta su propósito y su impacto en seguridad en `docs/ARQUITECTURA.md`.
 - Las **reglas de seguridad de Firebase** (Firestore, Storage, etc.) son parte del código del proyecto. Deben versionarse, revisarse y probarse. Nunca dejes reglas abiertas del tipo `allow read, write: if true`.
 

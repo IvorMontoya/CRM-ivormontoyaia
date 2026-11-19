@@ -13,16 +13,26 @@
 
 | Servicio | Uso previsto | Estado |
 |---|---|---|
-| Firebase Authentication | Inicio de sesión de usuarios del CRM | Pendiente |
-| Firestore (o Realtime Database) | Datos de clientes, oportunidades y actividad | Pendiente de decidir |
-| Firebase Storage | Documentos y archivos adjuntos | Pendiente |
-| Firebase Security Rules | Control de acceso a datos y archivos | Pendiente |
+| Firebase Authentication | Inicio de sesión de usuarios del CRM y de clientes del portal | Aprobado |
+| Cloud Firestore | Datos de clientes, oportunidades, proyectos, tiempo, facturas y uso de IA | Aprobado |
+| Cloud Functions | Automatizaciones, cálculos de uso e integraciones | Aprobado |
+| Firebase Storage | Documentos, propuestas firmadas y entregables | Previsto; se confirma al implementar el módulo de documentos |
+| Firebase Security Rules | Control de acceso a datos y archivos (versionadas y con tests) | Obligatorio para todo servicio de datos |
 
 ## 3. Módulos
 
-Lista provisional. Se confirmará con el responsable del proyecto antes de implementar.
+Módulos propuestos en `planning/` (ver [planning/README.md](../planning/README.md) y [planning/14-priorizacion.md](../planning/14-priorizacion.md)). Ninguno está implementado. Cada módulo se aprueba antes de desarrollarlo.
 
-- *Pendiente:* definir módulos (por ejemplo: clientes, oportunidades, proyectos, actividad, usuarios y roles).
+- Usuarios, roles y permisos (`planning/08`)
+- Clientes y contactos (`planning/01`)
+- Pipeline y propuestas (`planning/02`)
+- Onboarding y discovery (`planning/03`)
+- Proyectos y entregas (`planning/04`)
+- Tiempo, facturación y costes de IA (`planning/05`)
+- Catálogo de soluciones y agentes de IA (`planning/06`)
+- Portal de cliente (`planning/07`)
+- Automatizaciones e integraciones (`planning/09`)
+- Reportes y analítica (`planning/10`)
 
 ## 4. Decisiones aprobadas
 
