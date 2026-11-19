@@ -26,7 +26,9 @@ Este archivo es de lectura obligatoria para cualquier agente de IA que participe
 
 - Respeta la arquitectura descrita en `docs/ARQUITECTURA.md`. Si una tarea exige cambiarla, propón el cambio primero y espera aprobación.
 - Mantén los módulos desacoplados: cada funcionalidad debe poder añadirse o retirarse sin reescribir el resto.
-- Usa nombres claros y consistentes en español o inglés, según lo que se fije en `docs/ARQUITECTURA.md`. No mezcles ambos en el mismo nivel.
+- **Idioma:** interfaz, documentación y nombres de dominio en **español** (`clientes`, `proyectos`, `facturas`). Los términos técnicos estándar pueden ir en inglés (`auth`, `token`, `hook`). Lista de decisiones en `docs/ARQUITECTURA.md`.
+- **Stack aprobado:** React + TypeScript + Vite en el frontend; Firebase Authentication y Cloud Firestore para datos y acceso; Cloud Functions para lógica de servidor. No cambies el stack sin aprobación.
+- **Facturación** vive dentro del CRM. No implementes cobro con tarjeta propio: usa un proveedor de pagos cuando llegue esa fase.
 - No añadas dependencias nuevas sin justificarlo en el mensaje de commit o en la documentación.
 - Escribe código comprensible antes que código ingenioso.
 
