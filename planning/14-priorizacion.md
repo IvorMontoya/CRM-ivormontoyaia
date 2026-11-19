@@ -59,7 +59,7 @@ Usuarios y roles ──► Clientes ──► Pipeline ──► Proyecto ──
 3. **Medición de tokens (fase 3):** registro en código propio con tabla de precios y conciliación mensual (05).
 4. **Idioma:** español.
 5. **Stack:** React + TypeScript + Vite; Firebase Auth y Firestore; Cloud Functions (ver `docs/ARQUITECTURA.md`).
-6. **Licencia:** pendiente de añadir el archivo `LICENSE`. Recomendada: AGPL-3.0.
+6. **Licencia:** AGPL-3.0 (archivo `LICENSE`).
 
 ## Validación recomendada
 

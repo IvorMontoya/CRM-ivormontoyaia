@@ -26,4 +26,4 @@ Este repositorio es público. No publiques contraseñas, tokens, claves privadas
 
 ## Licencia
 
-Pendiente de definir.
+Este proyecto se distribuye bajo la [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Si ejecutas una versión modificada de este software como servicio para terceros, debes poner a disposición de sus usuarios el código fuente de esa versión.

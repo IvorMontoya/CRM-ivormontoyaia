@@ -35,14 +35,13 @@ Lista provisional. Se confirmará con el responsable del proyecto antes de imple
 | Lógica de servidor | **Cloud Functions** | Automatizaciones, cálculos de uso e integraciones |
 | Facturación | **Dentro del CRM.** Fase 1: facturas desde horas, retainers e hitos con numeración correlativa, impuestos y PDF. Fase 2: cobro con un proveedor de pagos (p. ej. Stripe) | Decisión del responsable; no se construye procesamiento de pagos propio |
 | Medición de tokens (fase 3) | **Registro en código propio:** cada llamada a un modelo guarda un evento de uso (cliente, proyecto, modelo, tokens de entrada y salida, coste) en Firestore. Tabla de precios por modelo con fecha de vigencia. Conciliación mensual con el panel del proveedor | Las soluciones las construye la agencia; no hace falta un proxy |
-| Licencia | **Pendiente de añadir el archivo `LICENSE`.** Recomendada: AGPL-3.0 | Sin licencia, el código público no puede usarse legalmente; el texto debe tomarse de una fuente verificada |
+| Licencia | **AGPL-3.0** (archivo `LICENSE`, texto oficial de la plantilla de GitHub) | Código público que no puede usarse como servicio cerrado sin compartir las mejoras |
 
 ## 5. Decisiones pendientes
 
 - [ ] Firestore frente a Realtime Database. (Recomendado: Firestore, ya reflejado en la documentación de planificación.)
 - [ ] Modelo de roles y permisos (detalle en `planning/08-usuarios-roles-y-permisos.md`).
 - [ ] Estrategia de pruebas (reglas de Firestore y lógica de negocio).
-- [ ] Añadir el archivo `LICENSE` con la licencia elegida.
 - [ ] Revisar obligaciones de facturación fiscal del país de la agencia (requisitos de software de facturación).
 
 ## 6. Registro de cambios de arquitectura
