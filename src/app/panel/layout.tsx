@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { useAuth } from "@/components/auth-provider";
 import { CrmProvider } from "@/components/crm-provider";
+import { ImportarDatosLocales } from "@/components/importar-datos-locales";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -38,7 +39,10 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
             <Separator orientation="vertical" className="mx-2 h-4" />
             <span className="text-sm text-muted-foreground">CRM-ivormontoyaia</span>
           </header>
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+          <main className="flex-1 p-4 md:p-6">
+            <ImportarDatosLocales />
+            {children}
+          </main>
         </SidebarInset>
       </SidebarProvider>
     </CrmProvider>

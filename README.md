@@ -2,7 +2,7 @@
 
 CRM personalizado para agencias de inteligencia artificial: gestión de clientes, oportunidades, proyectos y actividad comercial, diseñado para crecer por módulos.
 
-> **Estado:** primera versión funcional: landing, inicio de sesión con usuario y contraseña, panel con menú lateral y pestaña **Clientes** (clientes → proyectos → comentarios). Los datos se guardan en el navegador; la base de datos llegará en una fase posterior.
+> **Estado:** primera versión funcional: landing, inicio de sesión con usuario y contraseña, panel con menú lateral y pestaña **Clientes** (clientes → proyectos → comentarios), guardada en Cloud Firestore con acceso solo para su propietario.
 
 > **Aviso sobre `planning/`:** la carpeta [planning/](planning/README.md) es el resultado de una investigación en fuentes externas. **No es la planificación real del proyecto**: sirve solo como referencia. Las funcionalidades, prioridades y orden de implementación se deciden siempre con el responsable del proyecto, y los agentes deben preguntarle antes de tomar cualquier decisión basándose en esa carpeta.
 
@@ -21,7 +21,7 @@ CRM personalizado para agencias de inteligencia artificial: gestión de clientes
 
 - **Next.js** (App Router) con **React** y **TypeScript**, en modo de exportación estática (`output: "export"`).
 - **Tailwind CSS** y componentes de **shadcn/ui**, escritos en `src/components/ui/`.
-- **Firebase**: Authentication (usuario y contraseña) y Hosting. Los datos de la aplicación se guardan por ahora en `localStorage`.
+- **Firebase**: Authentication (usuario y contraseña), Cloud Firestore (datos) y Hosting.
 
 ## Estructura
 
@@ -66,8 +66,20 @@ Nunca subas `.env*` reales al repositorio: están excluidos en `.gitignore`.
 ```bash
 npm run build
 npx firebase-tools login      # una vez por equipo
-npx firebase-tools deploy --only hosting
+npx firebase-tools deploy --only firestore:rules,hosting
 ```
+
+## Base de datos (Cloud Firestore)
+
+Los datos de cada usuario viven en su propia ruta, y las reglas de `firestore.rules` solo permiten acceso al propietario:
+
+```
+usuarios/{uid}/clientes/{id}      { nombre, empresa, email, creadoEn }
+usuarios/{uid}/proyectos/{id}     { clienteId, nombre, descripcion, estado, creadoEn }
+usuarios/{uid}/comentarios/{id}   { proyectoId, texto, autor, creadoEn }
+```
+
+Las reglas validan campos, tamaños y estados, y exigen que el autor de un comentario sea el email del usuario que escribe. Cualquier otra ruta queda denegada.
 
 El proyecto de Firebase es `crm-ivormontoyaia` (ver `.firebaserc`). La carpeta publicada es `out/`.
 

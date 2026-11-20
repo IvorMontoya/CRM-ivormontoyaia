@@ -1,8 +1,9 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Configuración pública del SDK cliente. No es un secreto: la seguridad real
-// depende de las reglas de Firebase y de los usuarios que se creen en la consola.
+// depende de las reglas de Firestore y de los usuarios que se creen en la consola.
 // Los valores vienen de `.env.local` (ver `.env.example`).
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -18,8 +19,13 @@ export const firebaseConfigurado = Boolean(
   config.apiKey && config.authDomain && config.projectId && config.appId,
 );
 
-// Sin configuración no inicializamos Auth, para que la landing siga funcionando
+// Sin configuración no inicializamos nada, para que la landing siga funcionando
 // y la pantalla de login pueda explicar qué falta.
-export const auth = firebaseConfigurado
-  ? getAuth(getApps().length > 0 ? getApp() : initializeApp(config))
+const app = firebaseConfigurado
+  ? getApps().length > 0
+    ? getApp()
+    : initializeApp(config)
   : null;
+
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;

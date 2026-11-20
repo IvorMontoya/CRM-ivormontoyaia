@@ -1,110 +1,37 @@
-import {
-  datosVacios,
-  type CamposCliente,
-  type CamposProyecto,
-  type Cliente,
-  type Comentario,
-  type DatosCrm,
-  type EstadoProyecto,
-  type Proyecto,
-} from "./tipos";
+import type { DatosCrm } from "./tipos";
 
 // ---------------------------------------------------------------------------
-// Almacenamiento local (sin base de datos).
-// Los datos se guardan en el navegador, separados por usuario. Cuando se añada
-// una base de datos, solo cambian estas dos funciones de carga y guardado.
+// Datos guardados en el navegador por la versión anterior (localStorage).
+// Solo se usan para la importación única a Firestore.
 // ---------------------------------------------------------------------------
 
 const clave = (uid: string) => `crm-ivormontoyaia:v1:${uid}`;
+const claveImportado = (uid: string) => `crm-ivormontoyaia:importado:${uid}`;
 
-export function cargarDatos(uid: string): DatosCrm {
+/** Devuelve los datos locales si hay algo pendiente de importar; si no, `null`. */
+export function leerDatosLocales(uid: string): DatosCrm | null {
   try {
+    if (window.localStorage.getItem(claveImportado(uid))) return null;
     const bruto = window.localStorage.getItem(clave(uid));
-    if (!bruto) return datosVacios();
+    if (!bruto) return null;
     const parseado = JSON.parse(bruto) as Partial<DatosCrm>;
-    return {
+    const datos: DatosCrm = {
       clientes: Array.isArray(parseado.clientes) ? parseado.clientes : [],
       proyectos: Array.isArray(parseado.proyectos) ? parseado.proyectos : [],
       comentarios: Array.isArray(parseado.comentarios) ? parseado.comentarios : [],
     };
+    const total = datos.clientes.length + datos.proyectos.length + datos.comentarios.length;
+    return total > 0 ? datos : null;
   } catch {
-    // Datos corruptos o almacenamiento bloqueado: se empieza con datos vacíos.
-    return datosVacios();
+    return null;
   }
 }
 
-export function guardarDatos(uid: string, datos: DatosCrm): void {
+/** Marca los datos locales como importados. No los borra: quedan como copia de seguridad. */
+export function marcarDatosLocalesImportados(uid: string): void {
   try {
-    window.localStorage.setItem(clave(uid), JSON.stringify(datos));
+    window.localStorage.setItem(claveImportado(uid), new Date().toISOString());
   } catch {
-    // Si el navegador no permite guardar, los datos siguen en memoria durante la sesión.
+    // Sin almacenamiento, el botón podría volver a aparecer; no es grave.
   }
-}
-
-// ---------------------------------------------------------------------------
-// Operaciones puras sobre los datos. Devuelven un objeto nuevo y no tocan el almacenamiento.
-// ---------------------------------------------------------------------------
-
-function nuevoId(): string {
-  return crypto.randomUUID();
-}
-
-export function anadirCliente(datos: DatosCrm, campos: CamposCliente): DatosCrm {
-  const cliente: Cliente = { id: nuevoId(), creadoEn: new Date().toISOString(), ...campos };
-  return { ...datos, clientes: [...datos.clientes, cliente] };
-}
-
-export function eliminarCliente(datos: DatosCrm, clienteId: string): DatosCrm {
-  const proyectosDelCliente = new Set(
-    datos.proyectos.filter((p) => p.clienteId === clienteId).map((p) => p.id),
-  );
-  return {
-    clientes: datos.clientes.filter((c) => c.id !== clienteId),
-    proyectos: datos.proyectos.filter((p) => p.clienteId !== clienteId),
-    comentarios: datos.comentarios.filter((c) => !proyectosDelCliente.has(c.proyectoId)),
-  };
-}
-
-export function anadirProyecto(datos: DatosCrm, campos: CamposProyecto): DatosCrm {
-  const proyecto: Proyecto = { id: nuevoId(), creadoEn: new Date().toISOString(), ...campos };
-  return { ...datos, proyectos: [...datos.proyectos, proyecto] };
-}
-
-export function actualizarEstadoProyecto(
-  datos: DatosCrm,
-  proyectoId: string,
-  estado: EstadoProyecto,
-): DatosCrm {
-  return {
-    ...datos,
-    proyectos: datos.proyectos.map((p) => (p.id === proyectoId ? { ...p, estado } : p)),
-  };
-}
-
-export function eliminarProyecto(datos: DatosCrm, proyectoId: string): DatosCrm {
-  return {
-    ...datos,
-    proyectos: datos.proyectos.filter((p) => p.id !== proyectoId),
-    comentarios: datos.comentarios.filter((c) => c.proyectoId !== proyectoId),
-  };
-}
-
-export function anadirComentario(
-  datos: DatosCrm,
-  proyectoId: string,
-  texto: string,
-  autor: string,
-): DatosCrm {
-  const comentario: Comentario = {
-    id: nuevoId(),
-    proyectoId,
-    texto,
-    autor,
-    creadoEn: new Date().toISOString(),
-  };
-  return { ...datos, comentarios: [...datos.comentarios, comentario] };
-}
-
-export function eliminarComentario(datos: DatosCrm, comentarioId: string): DatosCrm {
-  return { ...datos, comentarios: datos.comentarios.filter((c) => c.id !== comentarioId) };
 }

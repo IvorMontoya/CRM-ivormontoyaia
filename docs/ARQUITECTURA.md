@@ -41,7 +41,7 @@ Módulos propuestos en `planning/` (ver [planning/README.md](../planning/README.
 | Alcance | CRM para **una sola agencia** | Simplifica el diseño; se mantiene el aislamiento por cliente para el portal |
 | Idioma | **Español** (interfaz, documentación y nombres de dominio como `clientes`, `proyectos`); términos técnicos en inglés cuando sean estándar (`auth`, `token`) | Decisión del responsable |
 | Frontend | **Next.js (App Router) con React y TypeScript, en exportación estática** (`output: "export"`), con Tailwind CSS y shadcn/ui | Decisión del responsable (sustituye a Vite). Sin funciones de servidor: se despliega en Firebase Hosting sin plan Blaze |
-| Datos y acceso | **Firebase Authentication + Cloud Firestore** | Infraestructura elegida para el proyecto |
+| Datos y acceso | **Firebase Authentication + Cloud Firestore** | Infraestructura elegida para el proyecto. Modelo en `usuarios/{uid}/{clientes,proyectos,comentarios}`, con reglas en `firestore.rules` |
 | Lógica de servidor | **Cloud Functions** | Automatizaciones, cálculos de uso e integraciones |
 | Facturación | **Dentro del CRM.** Fase 1: facturas desde horas, retainers e hitos con numeración correlativa, impuestos y PDF. Fase 2: cobro con un proveedor de pagos (p. ej. Stripe) | Decisión del responsable; no se construye procesamiento de pagos propio |
 | Medición de tokens (fase 3) | **Registro en código propio:** cada llamada a un modelo guarda un evento de uso (cliente, proyecto, modelo, tokens de entrada y salida, coste) en Firestore. Tabla de precios por modelo con fecha de vigencia. Conciliación mensual con el panel del proveedor | Las soluciones las construye la agencia; no hace falta un proxy |
@@ -60,3 +60,4 @@ Módulos propuestos en `planning/` (ver [planning/README.md](../planning/README.
 |---|---|---|
 | 2026-11-19 | Creación del documento | Fase 0: estructura inicial |
 | 2026-11-19 | Decisiones aprobadas: alcance, idioma, stack, facturación, medición de tokens y licencia recomendada | Confirmación del responsable |
+| 2026-11-20 | Pestaña Clientes migrada de `localStorage` a Cloud Firestore, con reglas por usuario y botón de importación única | Aprobación del responsable |

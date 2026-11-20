@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Modelo de datos (ver docs/ARQUITECTURA.md):
+//   usuarios/{uid}/clientes/{id}      { nombre, empresa, email, creadoEn }
+//   usuarios/{uid}/proyectos/{id}     { clienteId, nombre, descripcion, estado, creadoEn }
+//   usuarios/{uid}/comentarios/{id}   { proyectoId, texto, autor, creadoEn }
+//
+// Regla general: deny por defecto. Solo el propietario de la ruta `usuarios/{uid}`
+// puede leer y escribir sus datos. Todo lo demás queda denegado.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esPropietario(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function texto(valor, maximo) {
+      return valor is string && valor.size() <= maximo;
+    }
+
+    function fecha(valor) {
+      return valor is string && valor.size() <= 40;
+    }
+
+    function clienteValido(datos) {
+      return datos.keys().hasOnly(['nombre', 'empresa', 'email', 'creadoEn'])
+        && datos.keys().hasAll(['nombre', 'empresa', 'email', 'creadoEn'])
+        && texto(datos.nombre, 120) && datos.nombre.size() > 0
+        && texto(datos.empresa, 120)
+        && texto(datos.email, 254)
+        && fecha(datos.creadoEn);
+    }
+
+    function proyectoValido(datos) {
+      return datos.keys().hasOnly(['clienteId', 'nombre', 'descripcion', 'estado', 'creadoEn'])
+        && datos.keys().hasAll(['clienteId', 'nombre', 'descripcion', 'estado', 'creadoEn'])
+        && texto(datos.clienteId, 128)
+        && texto(datos.nombre, 120) && datos.nombre.size() > 0
+        && texto(datos.descripcion, 2000)
+        && datos.estado in ['activo', 'pausado', 'cerrado']
+        && fecha(datos.creadoEn);
+    }
+
+    function comentarioValido(datos) {
+      return datos.keys().hasOnly(['proyectoId', 'texto', 'autor', 'creadoEn'])
+        && datos.keys().hasAll(['proyectoId', 'texto', 'autor', 'creadoEn'])
+        && texto(datos.proyectoId, 128)
+        && texto(datos.texto, 5000) && datos.texto.size() > 0
+        // El autor debe ser el email de quien escribe: no se puede firmar como otro.
+        && datos.autor == request.auth.token.email
+        && fecha(datos.creadoEn);
+    }
+
+    match /usuarios/{uid}/clientes/{clienteId} {
+      allow read, delete: if esPropietario(uid);
+      allow create, update: if esPropietario(uid) && clienteValido(request.resource.data);
+    }
+
+    match /usuarios/{uid}/proyectos/{proyectoId} {
+      allow read, delete: if esPropietario(uid);
+      allow create, update: if esPropietario(uid) && proyectoValido(request.resource.data);
+    }
+
+    match /usuarios/{uid}/comentarios/{comentarioId} {
+      allow read, delete: if esPropietario(uid);
+      allow create, update: if esPropietario(uid) && comentarioValido(request.resource.data);
+    }
+  }
+}

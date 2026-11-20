@@ -27,15 +27,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/components/auth-provider";
 import { useCrm } from "@/components/crm-provider";
 import {
-  actualizarEstadoProyecto,
-  anadirCliente,
-  anadirComentario,
-  anadirProyecto,
-  eliminarCliente,
-  eliminarComentario,
-  eliminarProyecto,
-} from "@/lib/crm/datos";
-import {
   ESTADOS_PROYECTO,
   type CamposCliente,
   type CamposProyecto,
@@ -46,8 +37,10 @@ import { cn } from "@/lib/utils";
 const fecha = (iso: string) =>
   new Date(iso).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" });
 
+const avisarFallo = () => toast.error("No se pudo guardar. Revisa la conexión e inténtalo de nuevo.");
+
 export function ClientesView() {
-  const { datos, actualizar } = useCrm();
+  const { datos, cargando, acciones } = useCrm();
   const { usuario } = useAuth();
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [proyectoId, setProyectoId] = useState<string | null>(null);
@@ -59,31 +52,47 @@ export function ClientesView() {
     : [];
   const proyecto = proyectosDelCliente.find((p) => p.id === proyectoId) ?? null;
 
-  function crearCliente(campos: CamposCliente) {
-    actualizar((d) => anadirCliente(d, campos));
-    toast.success(`Cliente "${campos.nombre}" creado`);
+  async function crearCliente(campos: CamposCliente) {
+    try {
+      await acciones.crearCliente(campos);
+      toast.success(`Cliente "${campos.nombre}" creado`);
+    } catch {
+      avisarFallo();
+    }
   }
 
-  function borrarCliente() {
+  async function borrarCliente() {
     if (!cliente) return;
     if (!window.confirm(`¿Eliminar a "${cliente.nombre}" con sus proyectos y comentarios?`)) return;
-    actualizar((d) => eliminarCliente(d, cliente.id));
-    setClienteId(null);
-    setProyectoId(null);
-    toast.success("Cliente eliminado");
+    try {
+      await acciones.eliminarCliente(cliente.id);
+      setClienteId(null);
+      setProyectoId(null);
+      toast.success("Cliente eliminado");
+    } catch {
+      avisarFallo();
+    }
   }
 
-  function crearProyecto(campos: CamposProyecto) {
-    actualizar((d) => anadirProyecto(d, campos));
-    toast.success(`Proyecto "${campos.nombre}" creado`);
+  async function crearProyecto(campos: CamposProyecto) {
+    try {
+      await acciones.crearProyecto(campos);
+      toast.success(`Proyecto "${campos.nombre}" creado`);
+    } catch {
+      avisarFallo();
+    }
   }
 
-  function borrarProyecto() {
+  async function borrarProyecto() {
     if (!proyecto) return;
     if (!window.confirm(`¿Eliminar el proyecto "${proyecto.nombre}" y sus comentarios?`)) return;
-    actualizar((d) => eliminarProyecto(d, proyecto.id));
-    setProyectoId(null);
-    toast.success("Proyecto eliminado");
+    try {
+      await acciones.eliminarProyecto(proyecto.id);
+      setProyectoId(null);
+      toast.success("Proyecto eliminado");
+    } catch {
+      avisarFallo();
+    }
   }
 
   return (
@@ -105,7 +114,8 @@ export function ClientesView() {
             <CardTitle className="text-base">Clientes ({datos.clientes.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            {datos.clientes.length === 0 && (
+            {cargando && <p className="text-sm text-muted-foreground">Cargando clientes...</p>}
+            {!cargando && datos.clientes.length === 0 && (
               <p className="text-sm text-muted-foreground">Todavía no hay clientes.</p>
             )}
             {datos.clientes.map((c) => (
@@ -163,7 +173,7 @@ export function ClientesView() {
                       )}
                     </CardDescription>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={borrarCliente} aria-label="Eliminar cliente">
+                  <Button variant="ghost" size="sm" onClick={() => void borrarCliente()} aria-label="Eliminar cliente">
                     <Trash2 className="size-4" /> Eliminar
                   </Button>
                 </CardHeader>
@@ -219,9 +229,9 @@ export function ClientesView() {
                         aria-label="Estado del proyecto"
                         value={proyecto.estado}
                         onChange={(e) =>
-                          actualizar((d) =>
-                            actualizarEstadoProyecto(d, proyecto.id, e.target.value as EstadoProyecto),
-                          )
+                          acciones
+                            .cambiarEstadoProyecto(proyecto.id, e.target.value as EstadoProyecto)
+                            .catch(avisarFallo)
                         }
                         className="h-8 rounded-md border border-input bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
@@ -231,7 +241,7 @@ export function ClientesView() {
                           </option>
                         ))}
                       </select>
-                      <Button variant="ghost" size="sm" onClick={borrarProyecto} aria-label="Eliminar proyecto">
+                      <Button variant="ghost" size="sm" onClick={() => void borrarProyecto()} aria-label="Eliminar proyecto">
                         <Trash2 className="size-4" />
                       </Button>
                     </div>
@@ -254,7 +264,7 @@ export function ClientesView() {
 }
 
 function ComentariosProyecto({ proyectoId, autor }: { proyectoId: string; autor: string }) {
-  const { datos, actualizar } = useCrm();
+  const { datos, acciones } = useCrm();
   const [texto, setTexto] = useState("");
   const comentarios = datos.comentarios.filter((c) => c.proyectoId === proyectoId);
 
@@ -262,13 +272,16 @@ function ComentariosProyecto({ proyectoId, autor }: { proyectoId: string; autor:
     e.preventDefault();
     const limpio = texto.trim();
     if (!limpio) return;
-    actualizar((d) => anadirComentario(d, proyectoId, limpio, autor));
     setTexto("");
+    acciones.crearComentario(proyectoId, limpio, autor).catch(() => {
+      setTexto(limpio);
+      avisarFallo();
+    });
   }
 
   function borrar(comentarioId: string) {
     if (!window.confirm("¿Eliminar este comentario?")) return;
-    actualizar((d) => eliminarComentario(d, comentarioId));
+    acciones.eliminarComentario(comentarioId).catch(avisarFallo);
   }
 
   return (
