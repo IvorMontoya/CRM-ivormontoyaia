@@ -4,6 +4,8 @@ CRM personalizado para agencias de inteligencia artificial: gestión de clientes
 
 > **Estado:** fase 0 — estructura inicial, documentación y configuración de agentes. Aún no hay funcionalidades implementadas.
 
+> **Aviso sobre `planning/`:** la carpeta [planning/](planning/README.md) es el resultado de una investigación en fuentes externas. **No es la planificación real del proyecto**: sirve solo como referencia. Las funcionalidades, prioridades y orden de implementación se deciden siempre con el responsable del proyecto, y los agentes deben preguntarle antes de tomar cualquier decisión basándose en esa carpeta.
+
 ## Objetivos
 
 - Arquitectura escalable y modular, que permita añadir funcionalidades de forma progresiva.
