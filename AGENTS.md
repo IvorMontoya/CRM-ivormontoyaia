@@ -6,8 +6,16 @@ Este archivo es de lectura obligatoria para cualquier agente de IA que participe
 
 - Es un CRM personalizado para agencias de inteligencia artificial.
 - El repositorio es **público**. Todo lo que se publique puede ser visto, copiado e indexado.
-- El desarrollo se hace **por fases**. La fase actual es la 0: estructura, Git/GitHub, documentación e instrucciones.
-- **No implementes funcionalidades del CRM** hasta que la arquitectura y los módulos estén definidos y aprobados por el responsable del proyecto.
+- El desarrollo se hace **por fases**. Fase 1 aprobada y en curso: landing, inicio de sesión con usuario y contraseña, panel con menú lateral y pestaña **Clientes** (clientes → proyectos → comentarios, guardados en el navegador).
+- **No implementes módulos nuevos** (facturación, costes de IA, portal, etc.) sin aprobación expresa del responsable del proyecto. Cada pestaña nueva se aprueba antes de desarrollarla.
+
+## 1b. Reglas de desarrollo (Next.js y shadcn)
+
+- **Next.js 16 tiene cambios importantes.** Antes de escribir código de Next, lee la guía correspondiente en `node_modules/next/dist/docs/`. No te bases solo en la memoria del entrenamiento.
+- La app es una **exportación estática** (`output: "export"`): no añadas rutas dinámicas sin `generateStaticParams`, ni Server Actions, ni route handlers, ni middleware. Eso requiere cambiar primero la arquitectura.
+- Los componentes de **shadcn/ui** de este proyecto usan **Base UI**: para cambiar el elemento que renderiza un componente se usa la prop `render` (p. ej. `<Button render={<Link href="/" />}>`), no `asChild`.
+- La protección de rutas del panel se hace en cliente (`src/app/panel/layout.tsx`). Eso es una comodidad de interfaz, no seguridad: la seguridad real depende de las reglas de Firebase cuando existan datos en Firestore.
+- Antes de dar algo por bueno: `npx tsc --noEmit`, `npm run lint` y `npm run build`.
 
 ## 2. Infraestructura: Firebase
 
@@ -27,7 +35,7 @@ Este archivo es de lectura obligatoria para cualquier agente de IA que participe
 - Respeta la arquitectura descrita en `docs/ARQUITECTURA.md`. Si una tarea exige cambiarla, propón el cambio primero y espera aprobación.
 - Mantén los módulos desacoplados: cada funcionalidad debe poder añadirse o retirarse sin reescribir el resto.
 - **Idioma:** interfaz, documentación y nombres de dominio en **español** (`clientes`, `proyectos`, `facturas`). Los términos técnicos estándar pueden ir en inglés (`auth`, `token`, `hook`). Lista de decisiones en `docs/ARQUITECTURA.md`.
-- **Stack aprobado:** React + TypeScript + Vite en el frontend; Firebase Authentication y Cloud Firestore para datos y acceso; Cloud Functions para lógica de servidor. No cambies el stack sin aprobación.
+- **Stack aprobado:** Next.js (App Router, exportación estática) con React y TypeScript en el frontend; Firebase Authentication para el acceso y Firebase Hosting para el despliegue; Cloud Firestore y Cloud Functions cuando se aprueben. No cambies el stack sin aprobación.
 - **Facturación** vive dentro del CRM. No implementes cobro con tarjeta propio: usa un proveedor de pagos cuando llegue esa fase.
 - No añadas dependencias nuevas sin justificarlo en el mensaje de commit o en la documentación.
 - Escribe código comprensible antes que código ingenioso.

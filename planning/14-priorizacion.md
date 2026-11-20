@@ -58,7 +58,7 @@ Usuarios y roles ──► Clientes ──► Pipeline ──► Proyecto ──
 2. **Facturación:** dentro del CRM; cobro con proveedor de pagos en la fase 2 (05).
 3. **Medición de tokens (fase 3):** registro en código propio con tabla de precios y conciliación mensual (05).
 4. **Idioma:** español.
-5. **Stack:** React + TypeScript + Vite; Firebase Auth y Firestore; Cloud Functions (ver `docs/ARQUITECTURA.md`).
+5. **Stack:** Next.js (exportación estática) con React y TypeScript; Firebase Auth y Hosting; Firestore y Cloud Functions cuando se aprueben (ver `docs/ARQUITECTURA.md`).
 6. **Licencia:** AGPL-3.0 (archivo `LICENSE`).
 
 ## Validación recomendada

@@ -40,7 +40,7 @@ Módulos propuestos en `planning/` (ver [planning/README.md](../planning/README.
 |---|---|---|
 | Alcance | CRM para **una sola agencia** | Simplifica el diseño; se mantiene el aislamiento por cliente para el portal |
 | Idioma | **Español** (interfaz, documentación y nombres de dominio como `clientes`, `proyectos`); términos técnicos en inglés cuando sean estándar (`auth`, `token`) | Decisión del responsable |
-| Frontend | **React + TypeScript + Vite** | CRM detrás de inicio de sesión; no necesita renderizado en servidor |
+| Frontend | **Next.js (App Router) con React y TypeScript, en exportación estática** (`output: "export"`), con Tailwind CSS y shadcn/ui | Decisión del responsable (sustituye a Vite). Sin funciones de servidor: se despliega en Firebase Hosting sin plan Blaze |
 | Datos y acceso | **Firebase Authentication + Cloud Firestore** | Infraestructura elegida para el proyecto |
 | Lógica de servidor | **Cloud Functions** | Automatizaciones, cálculos de uso e integraciones |
 | Facturación | **Dentro del CRM.** Fase 1: facturas desde horas, retainers e hitos con numeración correlativa, impuestos y PDF. Fase 2: cobro con un proveedor de pagos (p. ej. Stripe) | Decisión del responsable; no se construye procesamiento de pagos propio |
