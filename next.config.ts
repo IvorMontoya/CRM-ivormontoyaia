@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   output: "export",
   images: { unoptimized: true },
   trailingSlash: true,
+  // Solo en desarrollo: el indicador de Next.js queda a la derecha para no tapar el menú.
+  devIndicators: { position: "bottom-right" },
   // Tailwind CSS v4 con Turbopack (regla de la plantilla de create-next-app).
   turbopack: {
     rules: {

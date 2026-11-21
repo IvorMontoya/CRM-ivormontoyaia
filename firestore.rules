@@ -1,18 +1,37 @@
 rules_version = '2';
 
-// Modelo de datos (ver docs/ARQUITECTURA.md):
-//   usuarios/{uid}/clientes/{id}      { nombre, empresa, email, creadoEn }
-//   usuarios/{uid}/proyectos/{id}     { clienteId, nombre, descripcion, estado, creadoEn }
-//   usuarios/{uid}/comentarios/{id}   { proyectoId, texto, autor, creadoEn }
+// Modelo (ver docs/ARQUITECTURA.md):
+//   agencia/principal/clientes/{id}     { nombre, empresa, email, creadoEn }
+//   agencia/principal/proyectos/{id}    { clienteId, nombre, descripcion, estado, creadoEn, presupuesto?, fechaInicio?, fechaFin? }
+//   agencia/principal/comentarios/{id}  { proyectoId, texto, autor, creadoEn }
+//   agencia/principal/leads/{id}        { nombreContacto, empresa, email, telefono, origen, valorEstimado, responsable, etapa, notas, clienteId?, creadoEn, actualizadoEn }
+//   miembros/{email}                    { rol: 'admin' | 'miembro', creadoEn }
+//   usuarios/{uid}/...                  datos de la versión anterior: solo lectura para su propietario
 //
-// Regla general: deny por defecto. Solo el propietario de la ruta `usuarios/{uid}`
-// puede leer y escribir sus datos. Todo lo demás queda denegado.
+// Reglas de acceso:
+//   - Hace falta email verificado y estar en `miembros/{email}`.
+//   - Solo los admins gestionan `miembros`.
+//   - Por defecto se deniega todo lo que no esté listado aquí.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function esPropietario(uid) {
-      return request.auth != null && request.auth.uid == uid;
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function emailVerificado() {
+      return autenticado() && request.auth.token.email_verified == true;
+    }
+
+    function miembro() {
+      return emailVerificado()
+        && exists(/databases/$(database)/documents/miembros/$(request.auth.token.email));
+    }
+
+    function admin() {
+      return miembro()
+        && get(/databases/$(database)/documents/miembros/$(request.auth.token.email)).data.rol == 'admin';
     }
 
     function texto(valor, maximo) {
@@ -21,6 +40,10 @@ service cloud.firestore {
 
     function fecha(valor) {
       return valor is string && valor.size() <= 40;
+    }
+
+    function fechaIso(valor) {
+      return valor is string && valor.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
     function clienteValido(datos) {
@@ -33,13 +56,21 @@ service cloud.firestore {
     }
 
     function proyectoValido(datos) {
-      return datos.keys().hasOnly(['clienteId', 'nombre', 'descripcion', 'estado', 'creadoEn'])
+      // Presupuesto y fechas son opcionales: los proyectos antiguos no los tienen.
+      return datos.keys().hasOnly(['clienteId', 'nombre', 'descripcion', 'estado', 'creadoEn', 'presupuesto', 'fechaInicio', 'fechaFin'])
         && datos.keys().hasAll(['clienteId', 'nombre', 'descripcion', 'estado', 'creadoEn'])
         && texto(datos.clienteId, 128)
         && texto(datos.nombre, 120) && datos.nombre.size() > 0
         && texto(datos.descripcion, 2000)
         && datos.estado in ['activo', 'pausado', 'cerrado']
-        && fecha(datos.creadoEn);
+        && fecha(datos.creadoEn)
+        && (!('presupuesto' in datos) || datos.presupuesto == null
+            || (datos.presupuesto is number && datos.presupuesto >= 0 && datos.presupuesto <= 1000000000))
+        && (!('fechaInicio' in datos) || datos.fechaInicio == null || fechaIso(datos.fechaInicio))
+        && (!('fechaFin' in datos) || datos.fechaFin == null || fechaIso(datos.fechaFin))
+        && (!('fechaInicio' in datos) || !('fechaFin' in datos)
+            || datos.fechaInicio == null || datos.fechaFin == null
+            || datos.fechaFin >= datos.fechaInicio);
     }
 
     function comentarioValido(datos) {
@@ -52,19 +83,61 @@ service cloud.firestore {
         && fecha(datos.creadoEn);
     }
 
-    match /usuarios/{uid}/clientes/{clienteId} {
-      allow read, delete: if esPropietario(uid);
-      allow create, update: if esPropietario(uid) && clienteValido(request.resource.data);
+    function leadValido(datos) {
+      return datos.keys().hasOnly(['nombreContacto', 'empresa', 'email', 'telefono', 'origen', 'valorEstimado', 'responsable', 'etapa', 'notas', 'clienteId', 'creadoEn', 'actualizadoEn'])
+        && datos.keys().hasAll(['nombreContacto', 'empresa', 'email', 'telefono', 'origen', 'valorEstimado', 'responsable', 'etapa', 'notas', 'creadoEn'])
+        && texto(datos.nombreContacto, 120) && datos.nombreContacto.size() > 0
+        && texto(datos.empresa, 120)
+        && texto(datos.email, 254)
+        && texto(datos.telefono, 40)
+        && texto(datos.origen, 60)
+        && (datos.valorEstimado == null || (datos.valorEstimado is number && datos.valorEstimado >= 0 && datos.valorEstimado <= 1000000000))
+        && texto(datos.responsable, 254)
+        && datos.etapa in ['nuevo', 'contactado', 'calificado', 'propuesta', 'negociacion', 'ganado', 'perdido']
+        && texto(datos.notas, 2000)
+        && (!('clienteId' in datos) || texto(datos.clienteId, 128))
+        && fecha(datos.creadoEn)
+        && (!('actualizadoEn' in datos) || fecha(datos.actualizadoEn));
     }
 
-    match /usuarios/{uid}/proyectos/{proyectoId} {
-      allow read, delete: if esPropietario(uid);
-      allow create, update: if esPropietario(uid) && proyectoValido(request.resource.data);
+    function miembroValido(datos) {
+      return datos.keys().hasOnly(['rol', 'creadoEn'])
+        && datos.keys().hasAll(['rol', 'creadoEn'])
+        && datos.rol in ['admin', 'miembro']
+        && fecha(datos.creadoEn);
     }
 
-    match /usuarios/{uid}/comentarios/{comentarioId} {
-      allow read, delete: if esPropietario(uid);
-      allow create, update: if esPropietario(uid) && comentarioValido(request.resource.data);
+    // Datos compartidos de la agencia
+    match /agencia/principal/clientes/{id} {
+      allow read, delete: if miembro();
+      allow create, update: if miembro() && clienteValido(request.resource.data);
+    }
+
+    match /agencia/principal/proyectos/{id} {
+      allow read, delete: if miembro();
+      allow create, update: if miembro() && proyectoValido(request.resource.data);
+    }
+
+    match /agencia/principal/comentarios/{id} {
+      allow read, delete: if miembro();
+      allow create, update: if miembro() && comentarioValido(request.resource.data);
+    }
+
+    match /agencia/principal/leads/{id} {
+      allow read, delete: if miembro();
+      allow create, update: if miembro() && leadValido(request.resource.data);
+    }
+
+    // Miembros del equipo: solo los admins los gestionan; cualquier miembro puede verlos.
+    match /miembros/{email} {
+      allow read: if miembro();
+      allow create, update: if admin() && miembroValido(request.resource.data);
+      allow delete: if admin();
+    }
+
+    // Datos antiguos (una sola vez, para la migración): solo lectura para su propietario.
+    match /usuarios/{uid}/{documento=**} {
+      allow read: if autenticado() && request.auth.uid == uid;
     }
   }
 }

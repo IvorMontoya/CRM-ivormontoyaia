@@ -39,6 +39,10 @@ const fecha = (iso: string) =>
 
 const avisarFallo = () => toast.error("No se pudo guardar. Revisa la conexión e inténtalo de nuevo.");
 
+const formatoMoneda = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
+const formatoFecha = (iso: string | null | undefined) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("es-ES", { dateStyle: "medium" }) : "Sin definir";
+
 export function ClientesView() {
   const { datos, cargando, acciones } = useCrm();
   const { usuario } = useAuth();
@@ -127,8 +131,8 @@ export function ClientesView() {
                   setProyectoId(null);
                 }}
                 className={cn(
-                  "w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
-                  c.id === clienteId && "bg-accent font-medium",
+                  "w-full rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:border-foreground/50 hover:bg-foreground/10",
+                  c.id === clienteId && "border-foreground/50 bg-foreground/10 font-medium",
                 )}
               >
                 <div className="truncate">{c.nombre}</div>
@@ -246,7 +250,23 @@ export function ClientesView() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-6">
+                    <dl className="grid gap-4 text-sm sm:grid-cols-3">
+                      <div>
+                        <dt className="text-muted-foreground">Presupuesto</dt>
+                        <dd className="font-medium">
+                          {proyecto.presupuesto != null ? formatoMoneda.format(proyecto.presupuesto) : "Sin definir"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Inicio</dt>
+                        <dd className="font-medium">{formatoFecha(proyecto.fechaInicio)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Fin</dt>
+                        <dd className="font-medium">{formatoFecha(proyecto.fechaFin)}</dd>
+                      </div>
+                    </dl>
                     <ComentariosProyecto
                       key={proyecto.id}
                       proyectoId={proyecto.id}
@@ -388,14 +408,37 @@ function NuevoProyectoDialog({
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [estado, setEstado] = useState<EstadoProyecto>("activo");
+  const [presupuesto, setPresupuesto] = useState("");
+  const [fechaInicio, setFechaInicio] = useState("");
+  const [fechaFin, setFechaFin] = useState("");
 
   function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!nombre.trim()) return;
-    onCrear({ clienteId, nombre: nombre.trim(), descripcion: descripcion.trim(), estado });
+    const monto = presupuesto.trim() === "" ? null : Number(presupuesto.replace(",", "."));
+    if (monto !== null && (!Number.isFinite(monto) || monto < 0)) {
+      toast.error("El presupuesto debe ser un número mayor o igual que 0");
+      return;
+    }
+    if (fechaInicio && fechaFin && fechaFin < fechaInicio) {
+      toast.error("La fecha de fin no puede ser anterior a la de inicio");
+      return;
+    }
+    onCrear({
+      clienteId,
+      nombre: nombre.trim(),
+      descripcion: descripcion.trim(),
+      estado,
+      presupuesto: monto,
+      fechaInicio: fechaInicio || null,
+      fechaFin: fechaFin || null,
+    });
     setNombre("");
     setDescripcion("");
     setEstado("activo");
+    setPresupuesto("");
+    setFechaInicio("");
+    setFechaFin("");
     setAbierto(false);
   }
 
@@ -422,6 +465,26 @@ function NuevoProyectoDialog({
               onChange={(e) => setDescripcion(e.target.value)}
               rows={3}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="proyecto-presupuesto">Presupuesto (€)</Label>
+            <Input
+              id="proyecto-presupuesto"
+              inputMode="decimal"
+              placeholder="Ej. 2500"
+              value={presupuesto}
+              onChange={(e) => setPresupuesto(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="proyecto-inicio">Fecha de inicio</Label>
+              <Input id="proyecto-inicio" type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="proyecto-fin">Fecha de fin</Label>
+              <Input id="proyecto-fin" type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="proyecto-estado">Estado</Label>

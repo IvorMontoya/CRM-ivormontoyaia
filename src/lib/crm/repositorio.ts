@@ -3,7 +3,9 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
+  setDoc,
   updateDoc,
   writeBatch,
   type CollectionReference,
@@ -14,50 +16,74 @@ import {
 import { db } from "@/lib/firebase";
 import type {
   CamposCliente,
+  CamposLead,
   CamposProyecto,
   Cliente,
   Comentario,
   DatosCrm,
+  DatosLocales,
   EstadoProyecto,
+  EtapaLead,
+  Lead,
+  Miembro,
   Proyecto,
+  RolMiembro,
 } from "./tipos";
 
 // ---------------------------------------------------------------------------
-// Acceso a Firestore. Todas las rutas cuelgan de `usuarios/{uid}`, que es lo que
-// permiten las reglas de `firestore.rules`.
+// Acceso a Firestore. Los datos de la agencia viven en `agencia/principal`;
+// las reglas (`firestore.rules`) solo dejan entrar a los miembros verificados.
 // ---------------------------------------------------------------------------
 
-type Nombre = "clientes" | "proyectos" | "comentarios";
+type Coleccion = "clientes" | "proyectos" | "comentarios" | "leads";
 type Operacion = (lote: WriteBatch) => void;
 
 // Firestore admite hasta 500 operaciones por lote. Usamos un margen.
 const TAM_LOTE = 400;
 
 // Límites que coinciden con las reglas. Se aplican al escribir para no recibir rechazos.
-const LIMITES = { nombre: 120, empresa: 120, email: 254, clienteId: 128, descripcion: 2000, texto: 5000 };
+const LIMITES = { nombre: 120, empresa: 120, email: 254, clienteId: 128, descripcion: 2000, texto: 5000, telefono: 40, origen: 60, notas: 2000 };
 
-const ESTADOS: EstadoProyecto[] = ["activo", "pausado", "cerrado"];
+const ESTADOS_PROYECTO: EstadoProyecto[] = ["activo", "pausado", "cerrado"];
+const ETAPAS: EtapaLead[] = ["nuevo", "contactado", "calificado", "propuesta", "negociacion", "ganado", "perdido"];
 
 function raiz() {
   if (!db) throw new Error("Firestore no está configurado");
   return db;
 }
 
-function coleccion(uid: string, nombre: Nombre): CollectionReference {
-  return collection(raiz(), "usuarios", uid, nombre);
+function coleccion(nombre: Coleccion): CollectionReference {
+  return collection(raiz(), "agencia", "principal", nombre);
 }
 
-function referencia(uid: string, nombre: Nombre, id: string): DocumentReference {
-  return doc(raiz(), "usuarios", uid, nombre, id);
+function referencia(nombre: Coleccion, id: string): DocumentReference {
+  return doc(raiz(), "agencia", "principal", nombre, id);
 }
 
 const recortar = (valor: unknown, maximo: number) =>
   typeof valor === "string" ? valor.trim().slice(0, maximo) : "";
 
 const estadoValido = (valor: unknown): EstadoProyecto =>
-  ESTADOS.includes(valor as EstadoProyecto) ? (valor as EstadoProyecto) : "activo";
+  ESTADOS_PROYECTO.includes(valor as EstadoProyecto) ? (valor as EstadoProyecto) : "activo";
+
+const etapaValida = (valor: unknown): EtapaLead =>
+  ETAPAS.includes(valor as EtapaLead) ? (valor as EtapaLead) : "nuevo";
 
 const ahora = () => new Date().toISOString();
+
+// Mismos límites que las reglas: presupuesto entre 0 y 1.000.000.000 y fechas YYYY-MM-DD.
+const presupuestoValido = (valor: unknown): number | null =>
+  typeof valor === "number" && Number.isFinite(valor) && valor >= 0 && valor <= 1_000_000_000
+    ? Math.round(valor * 100) / 100
+    : null;
+
+const fechaValida = (valor: unknown): string | null =>
+  typeof valor === "string" && /^\d{4}-\d{2}-\d{2}$/.test(valor) ? valor : null;
+
+const valorLeadValido = (valor: unknown): number | null =>
+  typeof valor === "number" && Number.isFinite(valor) && valor >= 0 && valor <= 1_000_000_000
+    ? Math.round(valor * 100) / 100
+    : null;
 
 async function escribirPorLotes(operaciones: Operacion[]) {
   for (let i = 0; i < operaciones.length; i += TAM_LOTE) {
@@ -74,9 +100,11 @@ async function escribirPorLotes(operaciones: Operacion[]) {
 const porCreacion = <T extends { creadoEn: string }>(items: T[]) =>
   items.sort((a, b) => String(a.creadoEn ?? "").localeCompare(String(b.creadoEn ?? "")));
 
-/** Escucha las tres colecciones y avisa cuando hay cambios. Devuelve la función para dejar de escuchar. */
+/**
+ * Escucha las colecciones de la agencia y los miembros.
+ * Si las reglas deniegan el acceso (no eres miembro o no has verificado el email), `alFallar` avisa.
+ */
 export function suscribirDatos(
-  uid: string,
   alCambiar: (datos: DatosCrm) => void,
   alFallar: (error: Error) => void,
 ): Unsubscribe {
@@ -85,20 +113,22 @@ export function suscribirDatos(
     return () => {};
   }
 
-  const listo = { clientes: false, proyectos: false, comentarios: false };
+  const listo = { clientes: false, proyectos: false, comentarios: false, leads: false, miembros: false };
   let clientes: Cliente[] = [];
   let proyectos: Proyecto[] = [];
   let comentarios: Comentario[] = [];
+  let leads: Lead[] = [];
+  let miembros: Miembro[] = [];
 
-  // Solo avisamos cuando las tres colecciones han llegado al menos una vez.
+  // Solo avisamos cuando todas las colecciones han llegado al menos una vez.
   const emitir = () => {
-    if (listo.clientes && listo.proyectos && listo.comentarios) {
-      alCambiar({ clientes, proyectos, comentarios });
+    if (Object.values(listo).every(Boolean)) {
+      alCambiar({ clientes, proyectos, comentarios, leads, miembros });
     }
   };
 
   const u1 = onSnapshot(
-    coleccion(uid, "clientes"),
+    coleccion("clientes"),
     (snap) => {
       clientes = porCreacion(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Cliente, "id">) })));
       listo.clientes = true;
@@ -107,7 +137,7 @@ export function suscribirDatos(
     alFallar,
   );
   const u2 = onSnapshot(
-    coleccion(uid, "proyectos"),
+    coleccion("proyectos"),
     (snap) => {
       proyectos = porCreacion(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Proyecto, "id">) })));
       listo.proyectos = true;
@@ -116,10 +146,30 @@ export function suscribirDatos(
     alFallar,
   );
   const u3 = onSnapshot(
-    coleccion(uid, "comentarios"),
+    coleccion("comentarios"),
     (snap) => {
       comentarios = porCreacion(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Comentario, "id">) })));
       listo.comentarios = true;
+      emitir();
+    },
+    alFallar,
+  );
+  const u4 = onSnapshot(
+    coleccion("leads"),
+    (snap) => {
+      leads = porCreacion(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Lead, "id">) })));
+      listo.leads = true;
+      emitir();
+    },
+    alFallar,
+  );
+  const u5 = onSnapshot(
+    collection(raiz(), "miembros"),
+    (snap) => {
+      miembros = snap.docs
+        .map((d) => ({ email: d.id, ...(d.data() as Omit<Miembro, "email">) }))
+        .sort((a, b) => a.email.localeCompare(b.email));
+      listo.miembros = true;
       emitir();
     },
     alFallar,
@@ -129,15 +179,17 @@ export function suscribirDatos(
     u1();
     u2();
     u3();
+    u4();
+    u5();
   };
 }
 
 // ---------------------------------------------------------------------------
-// Escritura
+// Clientes, proyectos y comentarios
 // ---------------------------------------------------------------------------
 
-export async function crearCliente(uid: string, campos: CamposCliente): Promise<void> {
-  await addDoc(coleccion(uid, "clientes"), {
+export async function crearCliente(campos: CamposCliente): Promise<void> {
+  await addDoc(coleccion("clientes"), {
     nombre: recortar(campos.nombre, LIMITES.nombre),
     empresa: recortar(campos.empresa, LIMITES.empresa),
     email: recortar(campos.email, LIMITES.email),
@@ -146,51 +198,45 @@ export async function crearCliente(uid: string, campos: CamposCliente): Promise<
 }
 
 /** Borra el cliente con sus proyectos y comentarios. Los hijos se borran antes que el padre. */
-export async function eliminarCliente(uid: string, datos: DatosCrm, clienteId: string): Promise<void> {
+export async function eliminarCliente(datos: DatosCrm, clienteId: string): Promise<void> {
   const proyectos = datos.proyectos.filter((p) => p.clienteId === clienteId);
   const idsProyectos = new Set(proyectos.map((p) => p.id));
   const comentarios = datos.comentarios.filter((c) => idsProyectos.has(c.proyectoId));
 
   await escribirPorLotes([
-    ...comentarios.map((c) => (lote: WriteBatch) => lote.delete(referencia(uid, "comentarios", c.id))),
-    ...proyectos.map((p) => (lote: WriteBatch) => lote.delete(referencia(uid, "proyectos", p.id))),
-    (lote: WriteBatch) => lote.delete(referencia(uid, "clientes", clienteId)),
+    ...comentarios.map((c) => (lote: WriteBatch) => lote.delete(referencia("comentarios", c.id))),
+    ...proyectos.map((p) => (lote: WriteBatch) => lote.delete(referencia("proyectos", p.id))),
+    (lote: WriteBatch) => lote.delete(referencia("clientes", clienteId)),
   ]);
 }
 
-export async function crearProyecto(uid: string, campos: CamposProyecto): Promise<void> {
-  await addDoc(coleccion(uid, "proyectos"), {
+export async function crearProyecto(campos: CamposProyecto): Promise<void> {
+  await addDoc(coleccion("proyectos"), {
     clienteId: recortar(campos.clienteId, LIMITES.clienteId),
     nombre: recortar(campos.nombre, LIMITES.nombre),
     descripcion: recortar(campos.descripcion, LIMITES.descripcion),
     estado: estadoValido(campos.estado),
+    presupuesto: presupuestoValido(campos.presupuesto),
+    fechaInicio: fechaValida(campos.fechaInicio),
+    fechaFin: fechaValida(campos.fechaFin),
     creadoEn: ahora(),
   });
 }
 
-export async function actualizarEstadoProyecto(
-  uid: string,
-  proyectoId: string,
-  estado: EstadoProyecto,
-): Promise<void> {
-  await updateDoc(referencia(uid, "proyectos", proyectoId), { estado: estadoValido(estado) });
+export async function actualizarEstadoProyecto(proyectoId: string, estado: EstadoProyecto): Promise<void> {
+  await updateDoc(referencia("proyectos", proyectoId), { estado: estadoValido(estado) });
 }
 
-export async function eliminarProyecto(uid: string, datos: DatosCrm, proyectoId: string): Promise<void> {
+export async function eliminarProyecto(datos: DatosCrm, proyectoId: string): Promise<void> {
   const comentarios = datos.comentarios.filter((c) => c.proyectoId === proyectoId);
   await escribirPorLotes([
-    ...comentarios.map((c) => (lote: WriteBatch) => lote.delete(referencia(uid, "comentarios", c.id))),
-    (lote: WriteBatch) => lote.delete(referencia(uid, "proyectos", proyectoId)),
+    ...comentarios.map((c) => (lote: WriteBatch) => lote.delete(referencia("comentarios", c.id))),
+    (lote: WriteBatch) => lote.delete(referencia("proyectos", proyectoId)),
   ]);
 }
 
-export async function crearComentario(
-  uid: string,
-  proyectoId: string,
-  texto: string,
-  autor: string,
-): Promise<void> {
-  await addDoc(coleccion(uid, "comentarios"), {
+export async function crearComentario(proyectoId: string, texto: string, autor: string): Promise<void> {
+  await addDoc(coleccion("comentarios"), {
     proyectoId: recortar(proyectoId, LIMITES.clienteId),
     texto: recortar(texto, LIMITES.texto),
     // Las reglas exigen que el autor sea el email del usuario autenticado.
@@ -199,17 +245,85 @@ export async function crearComentario(
   });
 }
 
-export async function eliminarComentario(uid: string, comentarioId: string): Promise<void> {
-  await deleteDoc(referencia(uid, "comentarios", comentarioId));
+export async function eliminarComentario(comentarioId: string): Promise<void> {
+  await deleteDoc(referencia("comentarios", comentarioId));
 }
 
-/**
- * Copia los datos guardados en el navegador a Firestore.
- * Genera ids nuevos y reenlaza clientes, proyectos y comentarios. Los huérfanos se descartan.
- */
+// ---------------------------------------------------------------------------
+// Leads
+// ---------------------------------------------------------------------------
+
+export async function crearLead(campos: CamposLead): Promise<void> {
+  await addDoc(coleccion("leads"), limpiarLead(campos, ahora()));
+}
+
+export async function actualizarLead(leadId: string, campos: CamposLead): Promise<void> {
+  await updateDoc(referencia("leads", leadId), { ...limpiarLead(campos, undefined), actualizadoEn: ahora() });
+}
+
+export async function cambiarEtapaLead(leadId: string, etapa: EtapaLead): Promise<void> {
+  await updateDoc(referencia("leads", leadId), { etapa: etapaValida(etapa), actualizadoEn: ahora() });
+}
+
+export async function eliminarLead(leadId: string): Promise<void> {
+  await deleteDoc(referencia("leads", leadId));
+}
+
+/** Crea un cliente a partir del lead y marca el lead como ganado, enlazado al cliente. */
+export async function convertirLeadEnCliente(lead: Lead): Promise<void> {
+  const clienteRef = doc(coleccion("clientes"));
+  const lote = writeBatch(raiz());
+  lote.set(clienteRef, {
+    nombre: recortar(lead.empresa || lead.nombreContacto, LIMITES.nombre) || "Sin nombre",
+    empresa: recortar(lead.empresa, LIMITES.empresa),
+    email: recortar(lead.email, LIMITES.email),
+    creadoEn: ahora(),
+  });
+  lote.update(referencia("leads", lead.id), {
+    etapa: "ganado",
+    clienteId: clienteRef.id,
+    actualizadoEn: ahora(),
+  });
+  await lote.commit();
+}
+
+function limpiarLead(campos: CamposLead, creadoEn: string | undefined) {
+  const datos: Record<string, unknown> = {
+    nombreContacto: recortar(campos.nombreContacto, LIMITES.nombre),
+    empresa: recortar(campos.empresa, LIMITES.empresa),
+    email: recortar(campos.email, LIMITES.email),
+    telefono: recortar(campos.telefono, LIMITES.telefono),
+    origen: recortar(campos.origen, LIMITES.origen),
+    valorEstimado: valorLeadValido(campos.valorEstimado),
+    responsable: recortar(campos.responsable, LIMITES.email),
+    etapa: etapaValida(campos.etapa),
+    notas: recortar(campos.notas, LIMITES.notas),
+  };
+  if (campos.clienteId) datos.clienteId = recortar(campos.clienteId, LIMITES.clienteId);
+  if (creadoEn) datos.creadoEn = creadoEn;
+  return datos;
+}
+
+// ---------------------------------------------------------------------------
+// Equipo (solo admins: lo impiden las reglas si no lo son)
+// ---------------------------------------------------------------------------
+
+export async function agregarMiembro(email: string, rol: RolMiembro): Promise<void> {
+  const id = email.trim().toLowerCase();
+  await setDoc(doc(raiz(), "miembros", id), { rol, creadoEn: ahora() });
+}
+
+export async function quitarMiembro(email: string): Promise<void> {
+  await deleteDoc(doc(raiz(), "miembros", email.trim().toLowerCase()));
+}
+
+// ---------------------------------------------------------------------------
+// Importación desde el navegador y migración desde la versión anterior
+// ---------------------------------------------------------------------------
+
+/** Copia los datos guardados en el navegador (versión anterior). Genera ids nuevos y reenlaza. */
 export async function importarDatosLocales(
-  uid: string,
-  locales: DatosCrm,
+  locales: DatosLocales,
   autorDeComentarios: string,
 ): Promise<{ clientes: number; proyectos: number; comentarios: number }> {
   const operaciones: Operacion[] = [];
@@ -217,7 +331,7 @@ export async function importarDatosLocales(
   const idProyectos = new Map<string, string>();
 
   for (const c of locales.clientes) {
-    const ref = doc(coleccion(uid, "clientes"));
+    const ref = doc(coleccion("clientes"));
     idClientes.set(c.id, ref.id);
     operaciones.push((lote) =>
       lote.set(ref, {
@@ -233,7 +347,7 @@ export async function importarDatosLocales(
   for (const p of locales.proyectos) {
     const clienteNuevo = idClientes.get(p.clienteId);
     if (!clienteNuevo) continue;
-    const ref = doc(coleccion(uid, "proyectos"));
+    const ref = doc(coleccion("proyectos"));
     idProyectos.set(p.id, ref.id);
     proyectos++;
     operaciones.push((lote) =>
@@ -254,7 +368,7 @@ export async function importarDatosLocales(
     if (!proyectoNuevo || !texto) continue;
     comentarios++;
     operaciones.push((lote) =>
-      lote.set(doc(coleccion(uid, "comentarios")), {
+      lote.set(doc(coleccion("comentarios")), {
         proyectoId: proyectoNuevo,
         texto,
         autor: autorDeComentarios,
@@ -265,4 +379,28 @@ export async function importarDatosLocales(
 
   await escribirPorLotes(operaciones);
   return { clientes: idClientes.size, proyectos, comentarios };
+}
+
+/**
+ * Copia los datos de la versión anterior (`usuarios/{uid}`) a la agencia compartida.
+ * Mantiene los mismos ids, así que repetirla no duplica nada.
+ */
+export async function migrarDesdeUsuario(uid: string): Promise<{ clientes: number; proyectos: number; comentarios: number }> {
+  const leer = (nombre: "clientes" | "proyectos" | "comentarios") =>
+    getDocs(collection(raiz(), "usuarios", uid, nombre)).then((snap) => snap.docs);
+
+  const [clientes, proyectos, comentarios] = await Promise.all([
+    leer("clientes"),
+    leer("proyectos"),
+    leer("comentarios"),
+  ]);
+
+  const operaciones: Operacion[] = [
+    ...clientes.map((d) => (lote: WriteBatch) => lote.set(referencia("clientes", d.id), d.data())),
+    ...proyectos.map((d) => (lote: WriteBatch) => lote.set(referencia("proyectos", d.id), d.data())),
+    ...comentarios.map((d) => (lote: WriteBatch) => lote.set(referencia("comentarios", d.id), d.data())),
+  ];
+
+  await escribirPorLotes(operaciones);
+  return { clientes: clientes.length, proyectos: proyectos.length, comentarios: comentarios.length };
 }

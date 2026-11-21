@@ -1,4 +1,4 @@
-import type { DatosCrm } from "./tipos";
+import type { DatosLocales } from "./tipos";
 
 // ---------------------------------------------------------------------------
 // Datos guardados en el navegador por la versión anterior (localStorage).
@@ -9,13 +9,13 @@ const clave = (uid: string) => `crm-ivormontoyaia:v1:${uid}`;
 const claveImportado = (uid: string) => `crm-ivormontoyaia:importado:${uid}`;
 
 /** Devuelve los datos locales si hay algo pendiente de importar; si no, `null`. */
-export function leerDatosLocales(uid: string): DatosCrm | null {
+export function leerDatosLocales(uid: string): DatosLocales | null {
   try {
     if (window.localStorage.getItem(claveImportado(uid))) return null;
     const bruto = window.localStorage.getItem(clave(uid));
     if (!bruto) return null;
-    const parseado = JSON.parse(bruto) as Partial<DatosCrm>;
-    const datos: DatosCrm = {
+    const parseado = JSON.parse(bruto) as Partial<DatosLocales>;
+    const datos: DatosLocales = {
       clientes: Array.isArray(parseado.clientes) ? parseado.clientes : [],
       proyectos: Array.isArray(parseado.proyectos) ? parseado.proyectos : [],
       comentarios: Array.isArray(parseado.comentarios) ? parseado.comentarios : [],
